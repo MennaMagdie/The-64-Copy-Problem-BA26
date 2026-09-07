@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VQC Architecture — Shared Parameters Explained | Team SHAGGY</title>
+    <meta name="description" content="Interactive Variational Quantum Circuit architecture diagram showing weight-tied brickwall ansatz for quantum phase classification.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2035;
+            --bg-card-hover: #1f2847;
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+
+            /* Parameter colors — each θ gets a unique, vivid hue */
+            --theta1-color: #f472b6;   /* Pink — IsingXX L1 */
+            --theta2-color: #60a5fa;   /* Blue — IsingZZ L1 */
+            --theta3-color: #34d399;   /* Green — RY */
+            --theta4-color: #fbbf24;   /* Amber — RZ */
+            --theta5-color: #c084fc;   /* Purple — IsingXX L2 */
+            --theta6-color: #f97316;   /* Orange — IsingZZ L2 */
+
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+
+            --accent-indigo: #818cf8;
+            --accent-cyan: #22d3ee;
+            --accent-emerald: #34d399;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ─── Animated background ─── */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            z-index: 0;
+        }
+
+        .bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.12;
+            z-index: 0;
+            animation: floatGlow 12s ease-in-out infinite alternate;
+        }
+        .bg-glow--1 { top: -200px; left: -100px; background: var(--theta1-color); }
+        .bg-glow--2 { bottom: -200px; right: -100px; background: var(--theta5-color); animation-delay: -6s; }
+
+        @keyframes floatGlow {
+            from { transform: translate(0, 0) scale(1); }
+            to   { transform: translate(40px, 30px) scale(1.15); }
+        }
+
+        /* ─── Layout ─── */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .header__badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(34,211,238,0.1));
+            border: 1px solid var(--border-subtle);
+            border-radius: 999px;
+            padding: 6px 18px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .header__badge::before {
+            content: '⚛';
+            font-size: 1rem;
+        }
+        .header__title {
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #f1f5f9 0%, #818cf8 50%, #22d3ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.15;
+            margin-bottom: 12px;
+        }
+        .header__subtitle {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            max-width: 720px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ─── Legend / Parameter Key ─── */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 40px;
+        }
+        .legend__item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        .legend__item:hover,
+        .legend__item.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .legend__swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .legend__item[data-param="theta1"] .legend__swatch { background: var(--theta1-color); }
+        .legend__item[data-param="theta2"] .legend__swatch { background: var(--theta2-color); }
+        .legend__item[data-param="theta3"] .legend__swatch { background: var(--theta3-color); }
+        .legend__item[data-param="theta4"] .legend__swatch { background: var(--theta4-color); }
+        .legend__item[data-param="theta5"] .legend__swatch { background: var(--theta5-color); }
+        .legend__item[data-param="theta6"] .legend__swatch { background: var(--theta6-color); }
+
+        .legend__item[data-param="theta1"]:hover,
+        .legend__item[data-param="theta1"].active { border-color: var(--theta1-color); box-shadow: 0 0 20px rgba(244,114,182,0.2); }
+        .legend__item[data-param="theta2"]:hover,
+        .legend__item[data-param="theta2"].active { border-color: var(--theta2-color); box-shadow: 0 0 20px rgba(96,165,250,0.2); }
+        .legend__item[data-param="theta3"]:hover,
+        .legend__item[data-param="theta3"].active { border-color: var(--theta3-color); box-shadow: 0 0 20px rgba(52,211,153,0.2); }
+        .legend__item[data-param="theta4"]:hover,
+        .legend__item[data-param="theta4"].active { border-color: var(--theta4-color); box-shadow: 0 0 20px rgba(251,191,36,0.2); }
+        .legend__item[data-param="theta5"]:hover,
+        .legend__item[data-param="theta5"].active { border-color: var(--theta5-color); box-shadow: 0 0 20px rgba(192,132,252,0.2); }
+        .legend__item[data-param="theta6"]:hover,
+        .legend__item[data-param="theta6"].active { border-color: var(--theta6-color); box-shadow: 0 0 20px rgba(249,115,22,0.2); }
+
+        /* ─── Main Diagram ─── */
+        .diagram-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 32px 16px;
+            margin-bottom: 48px;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), transparent 40%, transparent 60%, rgba(34,211,238,0.15));
+            z-index: -1;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask-composite: exclude;
+            -webkit-mask-composite: xor;
+            padding: 1px;
+        }
+
+        .diagram-title {
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 24px;
+        }
+
+        #circuit-svg {
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* SVG styles */
+        .wire-line {
+            stroke: #334155;
+            stroke-width: 1.5;
+        }
+        .wire-label {
+            fill: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .gate-rect {
+            rx: 6;
+            ry: 6;
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .gate-rect:hover {
+            filter: brightness(1.3) drop-shadow(0 0 8px currentColor);
+        }
+        .gate-text {
+            fill: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+        .gate-param-label {
+            fill: rgba(255,255,255,0.7);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        .connector-line {
+            stroke-width: 2;
+            stroke-dasharray: 4 3;
+            opacity: 0.5;
+        }
+        .layer-label {
+            fill: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            text-anchor: middle;
+            letter-spacing: 0.05em;
+        }
+        .layer-sublabel {
+            fill: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 10px;
+            text-anchor: middle;
+        }
+        .bracket-line {
+            stroke: var(--text-muted);
+            stroke-width: 1;
+            opacity: 0.4;
+        }
+        .shared-indicator {
+            fill: none;
+            stroke-width: 1.5;
+            stroke-dasharray: 6 3;
+            opacity: 0.35;
+        }
+        .input-label, .output-label {
+            fill: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            text-anchor: middle;
+        }
+
+        /* Pulse animation for shared param arcs */
+        @keyframes dashMove {
+            to { stroke-dashoffset: -18; }
+        }
+        .shared-indicator.animated {
+            animation: dashMove 1.2s linear infinite;
+            opacity: 0.6;
+        }
+
+        /* ─── Info Cards ─── */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+        }
+        .info-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .info-card__icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+        }
+        .info-card__title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+        .info-card__body {
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+        }
+        .info-card__body code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            background: rgba(99,102,241,0.12);
+            border: 1px solid rgba(99,102,241,0.15);
+            padding: 1px 6px;
+            border-radius: 4px;
+            color: var(--accent-indigo);
+        }
+
+        .card--shared .info-card__icon { background: linear-gradient(135deg, rgba(244,114,182,0.2), rgba(96,165,250,0.2)); }
+        .card--o1     .info-card__icon { background: linear-gradient(135deg, rgba(34,211,238,0.2), rgba(52,211,153,0.2)); }
+        .card--transfer .info-card__icon { background: linear-gradient(135deg, rgba(192,132,252,0.2), rgba(249,115,22,0.2)); }
+        .card--physics .info-card__icon { background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(52,211,153,0.2)); }
+
+        /* ─── Comparison Table ─── */
+        .comparison {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 48px;
+            overflow-x: auto;
+        }
+        .comparison__title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .comparison table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .comparison th {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .comparison td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(99,102,241,0.06);
+            color: var(--text-secondary);
+        }
+        .comparison tr:last-child td { border-bottom: none; }
+        .comparison .highlight {
+            color: var(--accent-emerald);
+            font-weight: 600;
+        }
+        .comparison .dim {
+            color: var(--text-muted);
+        }
+
+        /* ─── Bottom Equation ─── */
+        .equation-section {
+            text-align: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 36px 24px;
+        }
+        .equation-section__title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 20px;
+        }
+        .equation {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: clamp(0.85rem, 2vw, 1.1rem);
+            color: var(--text-primary);
+            line-height: 2;
+        }
+        .eq-theta1 { color: var(--theta1-color); font-weight: 600; }
+        .eq-theta2 { color: var(--theta2-color); font-weight: 600; }
+        .eq-theta3 { color: var(--theta3-color); font-weight: 600; }
+        .eq-theta4 { color: var(--theta4-color); font-weight: 600; }
+        .eq-theta5 { color: var(--theta5-color); font-weight: 600; }
+        .eq-theta6 { color: var(--theta6-color); font-weight: 600; }
+        .eq-dim    { color: var(--text-muted); }
+        .eq-accent { color: var(--accent-cyan); font-weight: 700; }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 640px) {
+            .container { padding: 24px 12px 60px; }
+            .legend { gap: 6px; }
+            .legend__item { padding: 6px 10px; font-size: 0.75rem; }
+            .cards-grid { grid-template-columns: 1fr; }
+            .diagram-wrapper { padding: 16px 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow bg-glow--1"></div>
+<div class="bg-glow bg-glow--2"></div>
+
+<div class="container">
+
+    <!-- ═══ HEADER ═══ -->
+    <header class="header">
+        <div class="header__badge">Team SHAGGY — Alexandria Quantum Hackathon 2026</div>
+        <h1 class="header__title">VQC Architecture:<br>Shared Parameters</h1>
+        <p class="header__subtitle">
+            Our translation-invariant brickwall ansatz uses only <strong>6 trainable parameters</strong>
+            shared across all qubit pairs — enabling O(1) complexity and zero-shot size transfer.
+        </p>
+    </header>
+
+    <!-- ═══ PARAMETER LEGEND ═══ -->
+    <div class="legend" id="legend">
+        <div class="legend__item" data-param="theta1">
+            <div class="legend__swatch"></div>
+            <span>θ₁ IsingXX L1 ≈ π/10</span>
+        </div>
+        <div class="legend__item" data-param="theta2">
+            <div class="legend__swatch"></div>
+            <span>θ₂ IsingZZ L1 ≈ π/4</span>
+        </div>
+        <div class="legend__item" data-param="theta3">
+            <div class="legend__swatch"></div>
+            <span>θ₃ RY ≈ π/6</span>
+        </div>
+        <div class="legend__item" data-param="theta4">
+            <div class="legend__swatch"></div>
+            <span>θ₄ RZ ≈ π/12</span>
+        </div>
+        <div class="legend__item" data-param="theta5">
+            <div class="legend__swatch"></div>
+            <span>θ₅ IsingXX L2 ≈ π/20</span>
+        </div>
+        <div class="legend__item" data-param="theta6">
+            <div class="legend__swatch"></div>
+            <span>θ₆ IsingZZ L2 ≈ π/8</span>
+        </div>
+    </div>
+
+    <!-- ═══ CIRCUIT DIAGRAM ═══ -->
+    <div class="diagram-wrapper">
+        <div class="diagram-title">Brickwall Ansatz — 6 Qubits Shown (Tiles to Any N)</div>
+        <svg id="circuit-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <!-- ═══ INFO CARDS ═══ -->
+    <div class="cards-grid">
+        <div class="info-card card--shared">
+            <div class="info-card__icon">🔗</div>
+            <h3 class="info-card__title">Why Shared Parameters?</h3>
+            <div class="info-card__body">
+                The XXZ Hamiltonian has <strong>translation symmetry</strong> — every bond on the ring is identical.
+                Our ansatz respects this: every <code>IsingXX(θ₁)</code> gate uses the <em>same</em> θ₁ regardless
+                of which qubit pair it acts on. Same color = same trainable weight. This is <strong>weight tying</strong>,
+                analogous to shared convolutional filters in CNNs.
+            </div>
+        </div>
+
+        <div class="info-card card--o1">
+            <div class="info-card__icon">📐</div>
+            <h3 class="info-card__title">O(1) Parameter Count</h3>
+            <div class="info-card__body">
+                Without sharing, a brickwall on N=16 qubits would need <code>2×16 + 16 + 2×16 = 80</code> parameters.
+                With sharing: always <code>6</code>. The count is <strong>constant</strong> regardless of system size.
+                This prevents overfitting when training data is scarce and satisfies the competition's parameter efficiency requirement.
+            </div>
+        </div>
+
+        <div class="info-card card--transfer">
+            <div class="info-card__icon">🔄</div>
+            <h3 class="info-card__title">Zero-Shot Size Transfer</h3>
+            <div class="info-card__body">
+                Because the 6 parameters don't depend on N, the <em>same trained weights</em> work on
+                <code>N=16</code>, <code>N=20</code>, <code>N=24</code>, or any size. The brickwall simply <strong>tiles</strong>
+                over more pairs. No retraining needed — the circuit generalizes to unseen system sizes out of the box.
+            </div>
+        </div>
+
+        <div class="info-card card--physics">
+            <div class="info-card__icon">⚡</div>
+            <h3 class="info-card__title">Physics-Informed Gates</h3>
+            <div class="info-card__body">
+                <code>IsingXX</code> probes transverse ⟨X·X⟩ correlations (dominant in XY phase).
+                <code>IsingZZ</code> probes longitudinal ⟨Z·Z⟩ correlations (dominant in NEEL phase).
+                <code>RY</code> and <code>RZ</code> mix and phase-shift — together they rotate the state
+                into a measurement basis where phase differences are <strong>amplified</strong>.
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ COMPARISON TABLE ═══ -->
+    <div class="comparison">
+        <h3 class="comparison__title">Shared vs. Independent Parameters — Side by Side</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>Independent Params</th>
+                    <th>Shared (Ours) ✓</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total parameters (N=16)</td>
+                    <td class="dim">80</td>
+                    <td class="highlight">6</td>
+                </tr>
+                <tr>
+                    <td>Total parameters (N=24)</td>
+                    <td class="dim">120</td>
+                    <td class="highlight">6</td>
+                </tr>
+                <tr>
+                    <td>Scaling with N</td>
+                    <td class="dim">O(N) — grows linearly</td>
+                    <td class="highlight">O(1) — constant</td>
+                </tr>
+                <tr>
+                    <td>Size transfer</td>
+                    <td class="dim">❌ Retrain for each N</td>
+                    <td class="highlight">✅ Same weights for any N</td>
+                </tr>
+                <tr>
+                    <td>Overfitting risk</td>
+                    <td class="dim">High — many params, few training samples</td>
+                    <td class="highlight">Low — 6 params, well-constrained</td>
+                </tr>
+                <tr>
+                    <td>Respects Hamiltonian symmetry</td>
+                    <td class="dim">❌ Breaks translation invariance</td>
+                    <td class="highlight">✅ Preserves translation invariance</td>
+                </tr>
+                <tr>
+                    <td>Training cost</td>
+                    <td class="dim">High-dimensional optimization</td>
+                    <td class="highlight">6D optimization — fast convergence</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ═══ EQUATION ═══ -->
+    <div class="equation-section">
+        <div class="equation-section__title">The 6 Trained Parameters</div>
+        <div class="equation">
+            <span class="eq-accent">U(θ)</span> <span class="eq-dim">=</span>
+            <span class="eq-dim">∏</span><sub class="eq-dim">pairs</sub>
+            <span class="eq-theta5">XX(θ₅)</span>·<span class="eq-theta6">ZZ(θ₆)</span>
+            <span class="eq-dim"> · </span>
+            <span class="eq-dim">∏</span><sub class="eq-dim">qubits</sub>
+            <span class="eq-theta3">RY(θ₃)</span>·<span class="eq-theta4">RZ(θ₄)</span>
+            <span class="eq-dim"> · </span>
+            <span class="eq-dim">∏</span><sub class="eq-dim">pairs</sub>
+            <span class="eq-theta1">XX(θ₁)</span>·<span class="eq-theta2">ZZ(θ₂)</span>
+            <br>
+            <span class="eq-dim" style="font-size: 0.85em;">
+                θ = [<span class="eq-theta1">0.314</span>,
+                     <span class="eq-theta2">0.785</span>,
+                     <span class="eq-theta3">0.524</span>,
+                     <span class="eq-theta4">0.262</span>,
+                     <span class="eq-theta5">0.157</span>,
+                     <span class="eq-theta6">0.393</span>]
+                — only 6 scalars for ANY system size N
+            </span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Circuit Diagram Generator — Draws the brickwall ansatz on 6 wires
+// ═══════════════════════════════════════════════════════════════════════════
+
+const COLORS = {
+    theta1: '#f472b6',
+    theta2: '#60a5fa',
+    theta3: '#34d399',
+    theta4: '#fbbf24',
+    theta5: '#c084fc',
+    theta6: '#f97316',
+};
+
+const NUM_WIRES = 6;
+const WIRE_SPACING = 56;
+const GATE_W = 48;
+const GATE_H = 28;
+const TWO_Q_GATE_H = 28;
+const MARGIN_TOP = 60;
+const MARGIN_LEFT = 80;
+const MARGIN_RIGHT = 100;
+const COL_GAP = 16;
+
+function wireY(i) {
+    return MARGIN_TOP + i * WIRE_SPACING;
+}
+
+const svg = document.getElementById('circuit-svg');
+
+// Column positions (x centers) for each gate column
+let x = MARGIN_LEFT + 30;
+const columns = [];
+function nextCol(width = GATE_W) {
+    const cx = x + width / 2;
+    columns.push(cx);
+    x += width + COL_GAP;
+    return cx;
+}
+
+// ── Build column positions ──
+// Layer 1 Even: XX, ZZ  |  Layer 1 Odd: XX, ZZ  |  Single: RY, RZ  |  Layer 2 Even: XX, ZZ  |  Layer 2 Odd: XX, ZZ
+const col_l1e_xx = nextCol(); // 0
+const col_l1e_zz = nextCol(); // 1
+const gap1 = (x += 10, undefined);
+const col_l1o_xx = nextCol(); // 2
+const col_l1o_zz = nextCol(); // 3
+const gap2 = (x += 18, undefined);
+const col_ry = nextCol();     // 4
+const col_rz = nextCol();     // 5
+const gap3 = (x += 18, undefined);
+const col_l2e_xx = nextCol(); // 6
+const col_l2e_zz = nextCol(); // 7
+const gap4 = (x += 10, undefined);
+const col_l2o_xx = nextCol(); // 8
+const col_l2o_zz = nextCol(); // 9
+
+const SVG_W = x + MARGIN_RIGHT;
+const SVG_H = MARGIN_TOP + (NUM_WIRES - 1) * WIRE_SPACING + 70;
+
+svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
+svg.setAttribute('width', Math.min(SVG_W, 1360));
+svg.setAttribute('height', SVG_H);
+
+let svgContent = '';
+
+// ── Helper: create elements ──
+function svgLine(x1, y1, x2, y2, cls, extra = '') {
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}" ${extra}/>`;
+}
+
+function svgRect(x, y, w, h, fill, stroke, cls = 'gate-rect', dataParam = '') {
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" class="${cls}" data-param="${dataParam}"/>`;
+}
+
+function svgText(x, y, text, cls = 'gate-text') {
+    return `<text x="${x}" y="${y}" class="${cls}">${text}</text>`;
+}
+
+// ── Draw wires ──
+for (let i = 0; i < NUM_WIRES; i++) {
+    const y = wireY(i);
+    svgContent += svgLine(MARGIN_LEFT - 20, y, SVG_W - MARGIN_RIGHT + 30, y, 'wire-line');
+    svgContent += svgText(MARGIN_LEFT - 40, y + 1, `q${i}`, 'wire-label');
+}
+
+// ── Input / Output labels ──
+svgContent += svgText(MARGIN_LEFT - 22, wireY(-1) + 10, '|ψ⟩', 'input-label');
+svgContent += svgText(SVG_W - MARGIN_RIGHT + 46, wireY(-1) + 10, 'Measure Z', 'output-label');
+
+// ── Draw two-qubit gate spanning wire i and i+1 ──
+function drawTwoQGate(cx, wireA, wireB, label, paramLabel, color, paramId) {
+    const yA = wireY(wireA);
+    const yB = wireY(wireB);
+    const yMid = (yA + yB) / 2;
+    const halfSpan = Math.abs(yB - yA) / 2;
+
+    // Connector line
+    svgContent += svgLine(cx, yA, cx, yB, 'connector-line', `stroke="${color}"`);
+
+    // Gate box centered between wires
+    const gH = Math.min(halfSpan * 2 - 8, TWO_Q_GATE_H * 2);
+    const gy = yMid - gH / 2;
+    svgContent += svgRect(cx - GATE_W / 2, gy, GATE_W, gH, colorToFill(color), color, 'gate-rect', paramId);
+    svgContent += svgText(cx, yMid - 5, label, 'gate-text');
+    svgContent += svgText(cx, yMid + 10, paramLabel, 'gate-param-label');
+
+    // Dots on wire
+    svgContent += `<circle cx="${cx}" cy="${yA}" r="4" fill="${color}" class="gate-dot" data-param="${paramId}"/>`;
+    svgContent += `<circle cx="${cx}" cy="${yB}" r="4" fill="${color}" class="gate-dot" data-param="${paramId}"/>`;
+}
+
+function colorToFill(hex) {
+    // Convert to rgba for semi-transparent fill
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    return `rgba(${r},${g},${b},0.15)`;
+}
+
+// ── Draw single-qubit gate on wire i ──
+function drawOneQGate(cx, wire, label, paramLabel, color, paramId) {
+    const y = wireY(wire);
+    svgContent += svgRect(cx - GATE_W / 2, y - GATE_H / 2, GATE_W, GATE_H, colorToFill(color), color, 'gate-rect', paramId);
+    svgContent += svgText(cx, y - 3, label, 'gate-text');
+    svgContent += svgText(cx, y + 10, paramLabel, 'gate-param-label');
+}
+
+// ── Layer 1 Even pairs: (0,1), (2,3), (4,5) ──
+for (let i = 0; i < NUM_WIRES; i += 2) {
+    drawTwoQGate(col_l1e_xx, i, i + 1, 'IsingXX', 'θ₁', COLORS.theta1, 'theta1');
+    drawTwoQGate(col_l1e_zz, i, i + 1, 'IsingZZ', 'θ₂', COLORS.theta2, 'theta2');
+}
+
+// ── Layer 1 Odd pairs: (1,2), (3,4), (5,0) ──
+for (let i = 1; i < NUM_WIRES; i += 2) {
+    const j = (i + 1) % NUM_WIRES;
+    if (j > i) {
+        drawTwoQGate(col_l1o_xx, i, j, 'IsingXX', 'θ₁', COLORS.theta1, 'theta1');
+        drawTwoQGate(col_l1o_zz, i, j, 'IsingZZ', 'θ₂', COLORS.theta2, 'theta2');
+    } else {
+        // Periodic pair (5,0) — draw arced connection
+        drawPeriodicGate(col_l1o_xx, i, j, 'IsingXX', 'θ₁', COLORS.theta1, 'theta1');
+        drawPeriodicGate(col_l1o_zz, i, j, 'IsingZZ', 'θ₂', COLORS.theta2, 'theta2');
+    }
+}
+
+function drawPeriodicGate(cx, wireA, wireB, label, paramLabel, color, paramId) {
+    const yA = wireY(wireA);
+    const yB = wireY(wireB);
+    // Draw small gate boxes on each wire
+    svgContent += svgRect(cx - GATE_W / 2, yA - GATE_H / 2, GATE_W, GATE_H, colorToFill(color), color, 'gate-rect', paramId);
+    svgContent += svgText(cx, yA - 3, label, 'gate-text');
+    svgContent += svgText(cx, yA + 10, paramLabel, 'gate-param-label');
+
+    svgContent += svgRect(cx - GATE_W / 2, yB - GATE_H / 2, GATE_W, GATE_H, colorToFill(color), color, 'gate-rect', paramId);
+    svgContent += svgText(cx, yB - 3, label, 'gate-text');
+    svgContent += svgText(cx, yB + 10, paramLabel, 'gate-param-label');
+
+    // Curved arc to show periodic connection
+    const arcRadius = 16;
+    svgContent += `<path d="M${cx + GATE_W/2 + 2},${yA} Q${cx + GATE_W/2 + arcRadius + 8},${(yA+yB)/2} ${cx + GATE_W/2 + 2},${yB}"
+        fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"
+        data-param="${paramId}"/>`;
+    // "PBC" label
+    svgContent += `<text x="${cx + GATE_W/2 + arcRadius + 14}" y="${(yA+yB)/2 + 3}"
+        fill="${color}" font-family="Inter" font-size="8" font-weight="600" opacity="0.7">PBC</text>`;
+}
+
+// ── Layer 1 Single-qubit: RY, RZ on all wires ──
+for (let i = 0; i < NUM_WIRES; i++) {
+    drawOneQGate(col_ry, i, 'RY', 'θ₃', COLORS.theta3, 'theta3');
+    drawOneQGate(col_rz, i, 'RZ', 'θ₄', COLORS.theta4, 'theta4');
+}
+
+// ── Layer 2 Even pairs ──
+for (let i = 0; i < NUM_WIRES; i += 2) {
+    drawTwoQGate(col_l2e_xx, i, i + 1, 'IsingXX', 'θ₅', COLORS.theta5, 'theta5');
+    drawTwoQGate(col_l2e_zz, i, i + 1, 'IsingZZ', 'θ₆', COLORS.theta6, 'theta6');
+}
+
+// ── Layer 2 Odd pairs ──
+for (let i = 1; i < NUM_WIRES; i += 2) {
+    const j = (i + 1) % NUM_WIRES;
+    if (j > i) {
+        drawTwoQGate(col_l2o_xx, i, j, 'IsingXX', 'θ₅', COLORS.theta5, 'theta5');
+        drawTwoQGate(col_l2o_zz, i, j, 'IsingZZ', 'θ₆', COLORS.theta6, 'theta6');
+    } else {
+        drawPeriodicGate(col_l2o_xx, i, j, 'IsingXX', 'θ₅', COLORS.theta5, 'theta5');
+        drawPeriodicGate(col_l2o_zz, i, j, 'IsingZZ', 'θ₆', COLORS.theta6, 'theta6');
+    }
+}
+
+// ── Layer labels ──
+const layerLabelY = wireY(-1) - 2;
+svgContent += svgText((col_l1e_xx + col_l1o_zz) / 2, layerLabelY, 'LAYER 1 — Entangling', 'layer-label');
+svgContent += svgText((col_ry + col_rz) / 2, layerLabelY, 'LAYER 1 — Rotations', 'layer-label');
+svgContent += svgText((col_l2e_xx + col_l2o_zz) / 2, layerLabelY, 'LAYER 2 — Refinement', 'layer-label');
+
+// Sub-labels
+svgContent += svgText((col_l1e_xx + col_l1e_zz) / 2, layerLabelY + 14, 'Even pairs', 'layer-sublabel');
+svgContent += svgText((col_l1o_xx + col_l1o_zz) / 2, layerLabelY + 14, 'Odd pairs', 'layer-sublabel');
+svgContent += svgText((col_l2e_xx + col_l2e_zz) / 2, layerLabelY + 14, 'Even pairs', 'layer-sublabel');
+svgContent += svgText((col_l2o_xx + col_l2o_zz) / 2, layerLabelY + 14, 'Odd pairs', 'layer-sublabel');
+
+// ── "Same θ" shared arcs between even and odd blocks ──
+function drawSharedArc(xA, xB, y, color, label) {
+    const yArc = y + 16;
+    svgContent += `<path d="M${xA},${y+4} Q${(xA+xB)/2},${yArc+8} ${xB},${y+4}"
+        fill="none" stroke="${color}" stroke-width="1.5" class="shared-indicator animated"
+        data-param="${label}"/>`;
+    svgContent += `<text x="${(xA+xB)/2}" y="${yArc + 18}"
+        fill="${color}" font-family="JetBrains Mono" font-size="9" text-anchor="middle"
+        font-weight="600" opacity="0.8">same ${label}</text>`;
+}
+
+const bottomWireY = wireY(NUM_WIRES - 1);
+drawSharedArc(col_l1e_xx, col_l1o_xx, bottomWireY + 14, COLORS.theta1, 'θ₁');
+drawSharedArc(col_l1e_zz, col_l1o_zz, bottomWireY + 36, COLORS.theta2, 'θ₂');
+drawSharedArc(col_l2e_xx, col_l2o_xx, bottomWireY + 14, COLORS.theta5, 'θ₅');
+drawSharedArc(col_l2e_zz, col_l2o_zz, bottomWireY + 36, COLORS.theta6, 'θ₆');
+
+// Adjust SVG height for arcs
+const newH = bottomWireY + 90;
+svg.setAttribute('viewBox', `0 0 ${SVG_W} ${newH}`);
+svg.setAttribute('height', newH);
+
+svg.innerHTML = svgContent;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Interactive: Highlight parameter groups on legend click
+// ═══════════════════════════════════════════════════════════════════════════
+document.querySelectorAll('.legend__item').forEach(item => {
+    item.addEventListener('click', () => {
+        const param = item.dataset.param;
+        const isActive = item.classList.toggle('active');
+
+        // Remove active from others
+        document.querySelectorAll('.legend__item').forEach(other => {
+            if (other !== item) other.classList.remove('active');
+        });
+
+        // Dim/highlight gates
+        const allGates = svg.querySelectorAll('[data-param]');
+        if (isActive) {
+            allGates.forEach(el => {
+                if (el.dataset.param === param) {
+                    el.style.opacity = '1';
+                    if (el.classList.contains('gate-rect')) {
+                        el.style.filter = 'brightness(1.4) drop-shadow(0 0 10px currentColor)';
+                    }
+                } else {
+                    el.style.opacity = '0.15';
+                    el.style.filter = '';
+                }
+            });
+        } else {
+            allGates.forEach(el => {
+                el.style.opacity = '';
+                el.style.filter = '';
+            });
+        }
+    });
+});
+</script>
+</body>
+</html>
